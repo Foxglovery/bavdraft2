@@ -100,7 +100,8 @@ function FulfillmentDashboard() {
     const selectedBatchData = productBatches.find(b => b.id === selectedBatch);
     const action = {
       id: Date.now(),
-      productId: selectedProduct,
+      productId: selectedProduct, // Keep full path for logging
+      productAcronym: selectedBatchData?.productAcronym || '', // Use acronym for inventory lookup
       batchId: selectedBatch,
       batchCode: selectedBatchData?.batchCode || '',
       quantity: parseInt(quantity),
@@ -120,8 +121,8 @@ function FulfillmentDashboard() {
 
   const submitAction = async (action) => {
     try {
-      // Extract product acronym from the full productId path
-      const productAcronym = action.productId.replace('/products/', '');
+      // Use the product acronym from the batch data
+      const productAcronym = action.productAcronym;
       console.log('Looking for inventory with productAcronym:', productAcronym);
       console.log('Current inventory array:', inventory);
       
@@ -150,6 +151,7 @@ function FulfillmentDashboard() {
         date: new Date().toISOString().split('T')[0],
         actions: [{
           productId: action.productId,
+          productAcronym: action.productAcronym,
           batchId: action.batchId,
           batchCode: action.batchCode,
           quantity: action.quantity,
@@ -298,7 +300,7 @@ function FulfillmentDashboard() {
                           <React.Fragment key={action.id}>
                             <ListItem>
                               <ListItemText
-                                primary={`${action.productId} - ${action.quantity} units`}
+                                primary={`${action.productAcronym} - ${action.quantity} units`}
                                 secondary={`Batch: ${action.batchCode} | Time: ${action.timestamp.toLocaleTimeString()}`}
                               />
                               <Button
@@ -374,7 +376,7 @@ function FulfillmentDashboard() {
                           <Box>
                             {log.actions?.map((action, index) => (
                               <Typography key={index} variant="body2">
-                                • {action.productId} - {action.quantity} units (Batch: {action.batchCode})
+                                • {action.productAcronym || action.productId} - {action.quantity} units (Batch: {action.batchCode})
                               </Typography>
                             ))}
                           </Box>
