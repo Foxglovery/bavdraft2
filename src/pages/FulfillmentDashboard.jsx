@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Grid,
@@ -25,9 +25,10 @@ import {
 } from '@mui/material';
 import {
   getProducts,
-  getBatchesByProduct,
+  getRecentBatchesByProduct,
   getInventory,
   updateInventory,
+  addInventory,
   addFulfillmentLog,
   getFulfillmentLogsByDate
 } from '../services/firebase';
@@ -44,16 +45,6 @@ function FulfillmentDashboard() {
   const [instantSubmit, setInstantSubmit] = useState(true);
   const [pendingActions, setPendingActions] = useState([]);
   const [todayLogs, setTodayLogs] = useState([]);
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    if (selectedProduct) {
-      loadProductBatches();
-    }
-  }, [selectedProduct]);
 
   const loadData = async () => {
     try {
@@ -73,21 +64,30 @@ function FulfillmentDashboard() {
     }
   };
 
-  const loadProductBatches = async () => {
+  const loadProductBatches = useCallback(async () => {
     try {
-      const batches = await getBatchesByProduct(selectedProduct);
-      // Sort by creation date (oldest first) and take last 3
-      const sortedBatches = batches
-        .sort((a, b) => a.createdAt?.toDate() - b.createdAt?.toDate())
-        .slice(-3);
-      setProductBatches(sortedBatches);
+      console.log('Loading batches for product:', selectedProduct);
+      const batches = await getRecentBatchesByProduct(selectedProduct, 4);
+      console.log('Loaded batches:', batches);
+      setProductBatches(batches);
     } catch (error) {
       console.error('Error loading product batches:', error);
     }
-  };
+  }, [selectedProduct]);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (selectedProduct) {
+      loadProductBatches();
+    }
+  }, [selectedProduct, loadProductBatches]);
 
   const handleProductChange = (event) => {
-    setSelectedProduct(event.target.value);
+    const productId = event.target.value;
+    setSelectedProduct(productId);
     setSelectedBatch('');
     setProductBatches([]);
   };
@@ -97,10 +97,12 @@ function FulfillmentDashboard() {
   };
 
   const handlePackagingAction = async () => {
+    const selectedBatchData = productBatches.find(b => b.id === selectedBatch);
     const action = {
       id: Date.now(),
       productId: selectedProduct,
       batchId: selectedBatch,
+      batchCode: selectedBatchData?.batchCode || '',
       quantity: parseInt(quantity),
       timestamp: new Date()
     };
@@ -118,11 +120,28 @@ function FulfillmentDashboard() {
 
   const submitAction = async (action) => {
     try {
+      // Extract product acronym from the full productId path
+      const productAcronym = action.productId.replace('/products/', '');
+      console.log('Looking for inventory with productAcronym:', productAcronym);
+      console.log('Current inventory array:', inventory);
+      
       // Update inventory
-      const productInventory = inventory.find(inv => inv.productId === action.productId);
+      const productInventory = inventory.find(inv => inv.productId === productAcronym);
+      console.log('Found inventory:', productInventory);
+      
       if (productInventory) {
+        const newTotal = productInventory.totalAvailable - action.quantity;
+        console.log(`Updating inventory: ${productInventory.totalAvailable} - ${action.quantity} = ${newTotal}`);
         await updateInventory(productInventory.id, {
-          totalAvailable: productInventory.totalAvailable - action.quantity
+          totalAvailable: newTotal
+        });
+      } else {
+        console.log('No inventory found for product:', productAcronym);
+        console.log('Available inventory productIds:', inventory.map(inv => inv.productId));
+        // Create new inventory entry if it doesn't exist
+        await addInventory({
+          productId: productAcronym,
+          totalAvailable: -action.quantity // Negative because we're fulfilling
         });
       }
 
@@ -132,6 +151,7 @@ function FulfillmentDashboard() {
         actions: [{
           productId: action.productId,
           batchId: action.batchId,
+          batchCode: action.batchCode,
           quantity: action.quantity,
           userId: 'fulfillmentUser1' // This should come from auth context
         }]
@@ -208,7 +228,7 @@ function FulfillmentDashboard() {
                         label="Product"
                       >
                         {products.map((product) => (
-                          <MenuItem key={product.id} value={product.acronym}>
+                          <MenuItem key={product.id} value={`/products/${product.id}`}>
                             {product.name} ({product.acronym})
                           </MenuItem>
                         ))}
@@ -219,15 +239,15 @@ function FulfillmentDashboard() {
                   {selectedProduct && (
                     <Grid item xs={12}>
                       <FormControl fullWidth>
-                        <InputLabel>Batch (Last 3 - Oldest First)</InputLabel>
+                        <InputLabel>Batch (Last 4 - Newest First)</InputLabel>
                         <Select
                           value={selectedBatch}
                           onChange={handleBatchChange}
-                          label="Batch (Last 3 - Oldest First)"
+                          label="Batch (Last 4 - Newest First)"
                         >
                           {productBatches.map((batch) => (
-                            <MenuItem key={batch.id} value={batch.code}>
-                              {batch.code} (Remaining: {batch.remaining})
+                            <MenuItem key={batch.id} value={batch.id}>
+                              {batch.batchCode} - {batch.quantityProduced} units ({batch.dateStr})
                             </MenuItem>
                           ))}
                         </Select>
@@ -279,7 +299,7 @@ function FulfillmentDashboard() {
                             <ListItem>
                               <ListItemText
                                 primary={`${action.productId} - ${action.quantity} units`}
-                                secondary={`Batch: ${action.batchId} | Time: ${action.timestamp.toLocaleTimeString()}`}
+                                secondary={`Batch: ${action.batchCode} | Time: ${action.timestamp.toLocaleTimeString()}`}
                               />
                               <Button
                                 variant="outlined"
@@ -354,7 +374,7 @@ function FulfillmentDashboard() {
                           <Box>
                             {log.actions?.map((action, index) => (
                               <Typography key={index} variant="body2">
-                                • {action.productId} - {action.quantity} units (Batch: {action.batchId})
+                                • {action.productId} - {action.quantity} units (Batch: {action.batchCode})
                               </Typography>
                             ))}
                           </Box>

@@ -138,15 +138,23 @@ function BakeryDashboard() {
 
       await addBatch(batchData);
 
-      // Update inventory
-      const existingInventory = inventory.find(inv => inv.productId === product.acronym);
+      // Update inventory - ensure we use the product acronym, not the document ID
+      const productAcronym = product.acronym || product.id;
+      console.log('Using product acronym for inventory:', productAcronym);
+      
+      const existingInventory = inventory.find(inv => inv.productId === productAcronym);
+      console.log('Found existing inventory for', productAcronym, ':', existingInventory);
+      
       if (existingInventory) {
+        const newTotal = existingInventory.totalAvailable + parseInt(quantity);
+        console.log(`Updating inventory: ${existingInventory.totalAvailable} + ${quantity} = ${newTotal}`);
         await updateInventory(existingInventory.id, {
-          totalAvailable: existingInventory.totalAvailable + parseInt(quantity)
+          totalAvailable: newTotal
         });
       } else {
+        console.log('Creating new inventory for', productAcronym, 'with quantity:', quantity);
         await addInventory({
-          productId: product.acronym,
+          productId: productAcronym,
           totalAvailable: parseInt(quantity)
         });
       }

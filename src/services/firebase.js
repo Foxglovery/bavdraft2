@@ -185,6 +185,41 @@ export const getBatchesByProduct = async (productId) => {
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
 
+export const getRecentBatchesByProduct = async (productId, limit = 4) => {
+  console.log('Querying productBatches for productId:', productId);
+  try {
+    const q = query(
+      collection(db, 'productBatches'), 
+      where('productId', '==', productId),
+      orderBy('dateMade', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    const results = querySnapshot.docs
+      .slice(0, limit)
+      .map(doc => ({ id: doc.id, ...doc.data() }));
+    console.log('Found batches:', results);
+    return results;
+  } catch (error) {
+    console.log('OrderBy failed, trying without orderBy:', error);
+    // Fallback without orderBy in case of indexing issues
+    const q = query(
+      collection(db, 'productBatches'), 
+      where('productId', '==', productId)
+    );
+    const querySnapshot = await getDocs(q);
+    const results = querySnapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .sort((a, b) => {
+        const dateA = a.dateMade?.toDate ? a.dateMade.toDate() : new Date(a.dateMade);
+        const dateB = b.dateMade?.toDate ? b.dateMade.toDate() : new Date(b.dateMade);
+        return dateB - dateA;
+      })
+      .slice(0, limit);
+    console.log('Found batches (fallback):', results);
+    return results;
+  }
+};
+
 export const updateBatch = async (batchId, batchData) => {
   const batchRef = doc(db, 'productBatches', batchId);
   return updateDoc(batchRef, normalizeProductBatch({ ...batchData }));
