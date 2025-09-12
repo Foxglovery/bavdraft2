@@ -132,6 +132,7 @@ function BakeryDashboard() {
         oilType: selectedOil?.type || '',
         dosageMg: Number(dosageMg || 0),
         quantityProduced: parseInt(quantity),
+        remainingQuantity: parseInt(quantity), // Initialize remaining quantity same as produced
         dateMade: new Date(),
         dateStr: new Date().toLocaleDateString('en-US', { year: '2-digit', month: '2-digit', day: '2-digit' }).replaceAll('/','-')
       };

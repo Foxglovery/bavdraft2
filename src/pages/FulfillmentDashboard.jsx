@@ -21,8 +21,10 @@ import {
   Tab,
   Chip,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  IconButton
 } from '@mui/material';
+import { Refresh } from '@mui/icons-material';
 import {
   getProducts,
   getRecentBatchesByProduct,
@@ -79,6 +81,16 @@ function FulfillmentDashboard() {
     loadData();
   }, []);
 
+  // Force reload data when component mounts to clear any cached data
+  useEffect(() => {
+    const handleFocus = () => {
+      loadData();
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   useEffect(() => {
     if (selectedProduct) {
       loadProductBatches();
@@ -90,6 +102,8 @@ function FulfillmentDashboard() {
     setSelectedProduct(productId);
     setSelectedBatch('');
     setProductBatches([]);
+    // Clear any cached data
+    loadData();
   };
 
   const handleBatchChange = (event) => {
@@ -191,9 +205,14 @@ function FulfillmentDashboard() {
 
   return (
     <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Fulfillment Dashboard
-      </Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h4" component="h1">
+          Fulfillment Dashboard
+        </Typography>
+        <IconButton onClick={loadData} color="primary" title="Refresh Data">
+          <Refresh />
+        </IconButton>
+      </Box>
 
       <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)} sx={{ mb: 3 }}>
         <Tab label="Packaging Actions" />
@@ -340,7 +359,9 @@ function FulfillmentDashboard() {
                   Current Inventory
                 </Typography>
                 <Grid container spacing={2}>
-                  {inventory.map((item) => (
+                  {inventory
+                    .filter(item => item.productId && item.productId.length <= 10) // Filter out document IDs
+                    .map((item) => (
                     <Grid item xs={12} sm={6} md={3} key={item.id}>
                       <Chip
                         label={`${item.productId}: ${item.totalAvailable}`}

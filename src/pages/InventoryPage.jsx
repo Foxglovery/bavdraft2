@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Box, Card, CardContent, Grid, TextField, Typography, Chip } from '@mui/material';
+import { Box, Card, CardContent, Grid, TextField, Typography, Chip, IconButton } from '@mui/material';
+import { Refresh } from '@mui/icons-material';
 import { getProducts, getInventory } from '../services/firebase';
 
 function InventoryPage() {
@@ -7,27 +8,40 @@ function InventoryPage() {
   const [inventory, setInventory] = useState([]);
   const [filter, setFilter] = useState('');
 
+  const loadData = async () => {
+    try {
+      console.log('Loading fresh inventory data...');
+      const [p, inv] = await Promise.all([getProducts(), getInventory()]);
+      console.log('Loaded products:', p);
+      console.log('Loaded inventory:', inv);
+      setProducts(p);
+      setInventory(inv);
+    } catch (e) {
+      console.error('Failed to load inventory', e);
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [p, inv] = await Promise.all([getProducts(), getInventory()]);
-        setProducts(p);
-        setInventory(inv);
-      } catch (e) {
-        console.error('Failed to load inventory', e);
-      }
-    };
-    load();
+    loadData();
   }, []);
 
   const rows = useMemo(() => {
     const map = new Map();
     products.forEach((p) => map.set(p.acronym, { product: p, totalAvailable: 0 }));
+    
+    // Only process inventory entries that have product acronyms (not document IDs)
     inventory.forEach((i) => {
+      // Skip entries with long document IDs (more than 10 characters)
+      if (i.productId && i.productId.length > 10) {
+        console.log('Skipping inventory entry with document ID:', i.productId);
+        return;
+      }
+      
       const row = map.get(i.productId) || { product: { name: i.productId, acronym: i.productId }, totalAvailable: 0 };
       row.totalAvailable = i.totalAvailable;
       map.set(i.productId, row);
     });
+    
     let list = Array.from(map.values());
     if (filter) {
       const f = filter.toLowerCase();
@@ -40,9 +54,14 @@ function InventoryPage() {
 
   return (
     <Box>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Inventory
-      </Typography>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h4" component="h1">
+          Inventory
+        </Typography>
+        <IconButton onClick={loadData} color="primary" title="Refresh Data">
+          <Refresh />
+        </IconButton>
+      </Box>
       <TextField
         fullWidth
         placeholder="Search by name or acronym..."
