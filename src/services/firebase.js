@@ -1,8 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, getDocs, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, getDocs, getDoc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 
-// Firebase configuration - replace with your actual config
+// Firebase configuration - using environment variables
 const firebaseConfig = {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -16,6 +16,88 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+
+// Test Firebase connection
+console.log('Firebase initialized with config:', {
+    projectId: firebaseConfig.projectId,
+    authDomain: firebaseConfig.authDomain
+});
+
+// ----------------------
+// Schema helpers
+// ----------------------
+
+const assertHasFields = (obj, requiredKeys, context) => {
+  const missing = requiredKeys.filter((k) => obj[k] === undefined || obj[k] === null);
+  if (missing.length > 0) {
+    throw new Error(`${context} missing required field(s): ${missing.join(', ')}`);
+  }
+};
+
+// Products
+const normalizeProduct = (data) => {
+  assertHasFields(data, ['acronym', 'active', 'inventoryCount', 'name'], 'Product');
+  return {
+    acronym: String(data.acronym).trim(),
+    active: Boolean(data.active),
+    inventoryCount: Number(data.inventoryCount),
+    name: String(data.name).trim()
+  };
+};
+
+// Oil Batches
+const normalizeOilBatch = (data) => {
+  assertHasFields(
+    data,
+    ['amountGrams', 'dateRecieved', 'oilBatchCode', 'potencyPercent', 'remainingGrams', 'type'],
+    'OilBatch'
+  );
+  return {
+    amountGrams: Number(data.amountGrams),
+    dateRecieved: data.dateRecieved,
+    oilBatchCode: String(data.oilBatchCode).trim(),
+    potencyPercent: Number(data.potencyPercent),
+    remainingGrams: Number(data.remainingGrams),
+    type: String(data.type).trim()
+  };
+};
+
+// Product Batches
+const withCollectionPath = (value, collectionPath) => {
+  if (typeof value !== 'string' || value.length === 0) return value;
+  return value.startsWith(`/${collectionPath}/`) ? value : `/${collectionPath}/${value}`;
+};
+
+const normalizeProductBatch = (data) => {
+  assertHasFields(
+    data,
+    [
+      'batchCode',
+      'dateMade',
+      'dateStr',
+      'dosageMg',
+      'oilBatchCode',
+      'oilBatchId',
+      'oilType',
+      'productAcronym',
+      'productId',
+      'quantityProduced'
+    ],
+    'ProductBatch'
+  );
+  return {
+    batchCode: String(data.batchCode).trim(),
+    dateMade: data.dateMade,
+    dateStr: String(data.dateStr).trim(),
+    dosageMg: Number(data.dosageMg),
+    oilBatchCode: String(data.oilBatchCode).trim(),
+    oilBatchId: withCollectionPath(String(data.oilBatchId).trim(), 'oilBatches'),
+    oilType: String(data.oilType).trim(),
+    productAcronym: String(data.productAcronym).trim(),
+    productId: withCollectionPath(String(data.productId).trim(), 'products'),
+    quantityProduced: Number(data.quantityProduced)
+  };
+};
 
 // Authentication functions
 export const signIn = (email, password) => {
@@ -33,19 +115,27 @@ export const onAuthChange = (callback) => {
 // Products collection
 export const addProduct = async (productData) => {
   return addDoc(collection(db, 'products'), {
-    ...productData,
+    ...normalizeProduct(productData),
     createdAt: serverTimestamp()
   });
 };
 
 export const getProducts = async () => {
-  const querySnapshot = await getDocs(collection(db, 'products'));
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  try {
+    console.log('Fetching products from Firestore...');
+    const querySnapshot = await getDocs(collection(db, 'products'));
+    const products = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    console.log('Products fetched:', products.length);
+    return products;
+  } catch (error) {
+    console.error('Error fetching products:', error);
+    throw error;
+  }
 };
 
 export const updateProduct = async (productId, productData) => {
   const productRef = doc(db, 'products', productId);
-  return updateDoc(productRef, productData);
+  return updateDoc(productRef, normalizeProduct({ ...productData }));
 };
 
 export const deleteProduct = async (productId) => {
@@ -56,7 +146,7 @@ export const deleteProduct = async (productId) => {
 // Oil batches collection
 export const addOilBatch = async (oilBatchData) => {
   return addDoc(collection(db, 'oilBatches'), {
-    ...oilBatchData,
+    ...normalizeOilBatch(oilBatchData),
     createdAt: serverTimestamp()
   });
 };
@@ -71,28 +161,33 @@ export const deleteOilBatch = async (oilBatchId) => {
   return deleteDoc(oilBatchRef);
 };
 
-// Batches collection
+export const updateOilBatch = async (oilBatchId, oilBatchData) => {
+  const oilBatchRef = doc(db, 'oilBatches', oilBatchId);
+  return updateDoc(oilBatchRef, normalizeOilBatch({ ...oilBatchData }));
+};
+
+// Product batches collection
 export const addBatch = async (batchData) => {
-  return addDoc(collection(db, 'batches'), {
-    ...batchData,
+  return addDoc(collection(db, 'productBatches'), {
+    ...normalizeProductBatch(batchData),
     createdAt: serverTimestamp()
   });
 };
 
 export const getBatches = async () => {
-  const querySnapshot = await getDocs(collection(db, 'batches'));
+  const querySnapshot = await getDocs(collection(db, 'productBatches'));
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
 
 export const getBatchesByProduct = async (productId) => {
-  const q = query(collection(db, 'batches'), where('productId', '==', productId));
+  const q = query(collection(db, 'productBatches'), where('productId', '==', productId));
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
 
 export const updateBatch = async (batchId, batchData) => {
-  const batchRef = doc(db, 'batches', batchId);
-  return updateDoc(batchRef, batchData);
+  const batchRef = doc(db, 'productBatches', batchId);
+  return updateDoc(batchRef, normalizeProductBatch({ ...batchData }));
 };
 
 // Inventory collection
@@ -160,26 +255,73 @@ export const updateRetailRequest = async (requestId, requestData) => {
 };
 
 // Users collection
-export const addUser = async (userData) => {
-  return addDoc(collection(db, 'users'), {
+export const addUser = async (userData, uid) => {
+  if (!uid) {
+    throw new Error('UID is required to create a user document');
+  }
+  const userRef = doc(db, 'users', uid);
+  return setDoc(userRef, {
     ...userData,
+    uid: uid,
     createdAt: serverTimestamp()
   });
 };
 
 export const getUsers = async () => {
-  const querySnapshot = await getDocs(collection(db, 'users'));
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  try {
+    console.log('Fetching users from Firestore...');
+    const querySnapshot = await getDocs(collection(db, 'users'));
+    const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    console.log('Users fetched:', users.length);
+    return users;
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    throw error;
+  }
 };
 
-export const updateUser = async (userId, userData) => {
-  const userRef = doc(db, 'users', userId);
-  return updateDoc(userRef, userData);
+export const getUserByUid = async (uid) => {
+  if (!uid) {
+    throw new Error('UID is required to get a user document');
+  }
+  const userRef = doc(db, 'users', uid);
+  const userDoc = await getDoc(userRef);
+  if (userDoc.exists()) {
+    return { id: userDoc.id, ...userDoc.data() };
+  }
+  return null;
 };
 
-export const deleteUser = async (userId) => {
-  const userRef = doc(db, 'users', userId);
+export const updateUser = async (uid, userData) => {
+  if (!uid) {
+    throw new Error('UID is required to update a user document');
+  }
+  const userRef = doc(db, 'users', uid);
+  return updateDoc(userRef, {
+    ...userData,
+    lastUpdated: serverTimestamp()
+  });
+};
+
+export const deleteUser = async (uid) => {
+  if (!uid) {
+    throw new Error('UID is required to delete a user document');
+  }
+  const userRef = doc(db, 'users', uid);
   return deleteDoc(userRef);
+};
+
+// Utility function to create or update user document on signup
+export const createOrUpdateUserDocument = async (uid, userData) => {
+  if (!uid) {
+    throw new Error('UID is required to create or update a user document');
+  }
+  const userRef = doc(db, 'users', uid);
+  return setDoc(userRef, {
+    ...userData,
+    uid: uid,
+    lastUpdated: serverTimestamp()
+  }, { merge: true }); // merge: true will update existing document or create new one
 };
 
 // Utility function for batch code generation
@@ -189,5 +331,7 @@ export const generateBatchCode = (productCode, oilBatchNumber, date = new Date()
   const yy = String(date.getFullYear()).slice(-2);
   return `${productCode}-DC${oilBatchNumber}-${mm}-${dd}-${yy}`;
 };
+
+console.log("Firebase config:", firebaseConfig);
 
 export { db, auth };

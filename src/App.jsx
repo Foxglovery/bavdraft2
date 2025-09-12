@@ -8,6 +8,7 @@ import BakeryDashboard from './pages/BakeryDashboard';
 import FulfillmentDashboard from './pages/FulfillmentDashboard';
 import RetailDashboard from './pages/RetailDashboard';
 import AdminDashboard from './pages/AdminDashboard';
+import InventoryPage from './pages/InventoryPage';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -67,6 +68,7 @@ function App() {
             <Route path="/fulfillment" element={<FulfillmentDashboard />} />
             <Route path="/retail" element={<RetailDashboard />} />
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/" element={<Navigate to="/bakery" replace />} />
           </Routes>
         </Container>

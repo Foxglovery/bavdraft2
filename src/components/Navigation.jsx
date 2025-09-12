@@ -35,6 +35,12 @@ function Navigation() {
         >
           Admin
         </Button>
+        <Button
+          onClick={() => navigate('/inventory')}
+          variant={isActive('/inventory') ? 'contained' : 'outlined'}
+        >
+          Inventory
+        </Button>
       </ButtonGroup>
     </Box>
   );

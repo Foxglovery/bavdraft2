@@ -38,6 +38,7 @@ import {
   deleteProduct,
   getOilBatches,
   addOilBatch,
+  updateOilBatch,
   deleteOilBatch,
   getInventory,
   updateInventory,
@@ -67,7 +68,15 @@ function AdminDashboard() {
 
   // Oil batch management state
   const [oilBatchDialogOpen, setOilBatchDialogOpen] = useState(false);
-  const [oilBatchForm, setOilBatchForm] = useState({ number: '', type: '' });
+  const [editingOilBatch, setEditingOilBatch] = useState(null);
+  const [oilBatchForm, setOilBatchForm] = useState({
+    oilBatchCode: '',
+    type: '',
+    amountGrams: '',
+    potencyPercent: '',
+    remainingGrams: '',
+    dateRecieved: new Date().toISOString().slice(0, 10)
+  });
 
   // Inventory adjustment state
   const [inventoryDialogOpen, setInventoryDialogOpen] = useState(false);
@@ -174,11 +183,50 @@ function AdminDashboard() {
   };
 
   // Oil batch management functions
+  const [oilBatchErrors, setOilBatchErrors] = useState({});
+
+  const validateOilBatch = (values) => {
+    const errs = {};
+    if (!values.oilBatchCode) errs.oilBatchCode = 'Required';
+    if (!values.type) errs.type = 'Required';
+    if (values.amountGrams === '' || Number(values.amountGrams) <= 0) errs.amountGrams = 'Must be > 0';
+    if (values.potencyPercent === '' || Number(values.potencyPercent) <= 0) errs.potencyPercent = 'Must be > 0';
+    if (values.remainingGrams === '' || Number(values.remainingGrams) < 0) errs.remainingGrams = 'Must be ≥ 0';
+    if (!values.dateRecieved) errs.dateRecieved = 'Required';
+    return errs;
+  };
+
   const handleOilBatchSubmit = async () => {
     try {
-      await addOilBatch(oilBatchForm);
+      const errs = validateOilBatch(oilBatchForm);
+      setOilBatchErrors(errs);
+      if (Object.keys(errs).length > 0) return;
+
+      const payload = {
+        oilBatchCode: oilBatchForm.oilBatchCode,
+        type: oilBatchForm.type,
+        amountGrams: Number(oilBatchForm.amountGrams),
+        potencyPercent: Number(oilBatchForm.potencyPercent),
+        remainingGrams: Number(oilBatchForm.remainingGrams),
+        dateRecieved: new Date(oilBatchForm.dateRecieved)
+      };
+
+      if (editingOilBatch) {
+        await updateOilBatch(editingOilBatch.id, payload);
+      } else {
+        await addOilBatch(payload);
+      }
       setOilBatchDialogOpen(false);
-      setOilBatchForm({ number: '', type: '' });
+      setEditingOilBatch(null);
+      setOilBatchForm({
+        oilBatchCode: '',
+        type: '',
+        amountGrams: '',
+        potencyPercent: '',
+        remainingGrams: '',
+        dateRecieved: new Date().toISOString().slice(0, 10)
+      });
+      setOilBatchErrors({});
       loadData();
     } catch (error) {
       console.error('Error saving oil batch:', error);
@@ -320,7 +368,19 @@ function AdminDashboard() {
               <Button
                 variant="contained"
                 color="primary"
-                onClick={() => setOilBatchDialogOpen(true)}
+                onClick={() => {
+                  setEditingOilBatch(null);
+                  setOilBatchForm({
+                    oilBatchCode: '',
+                    type: '',
+                    amountGrams: '',
+                    potencyPercent: '',
+                    remainingGrams: '',
+                    dateRecieved: new Date().toISOString().slice(0, 10)
+                  });
+                  setOilBatchErrors({});
+                  setOilBatchDialogOpen(true);
+                }}
               >
                 Add Oil Batch
               </Button>
@@ -331,9 +391,24 @@ function AdminDashboard() {
                 <React.Fragment key={batch.id}>
                   <ListItem>
                     <ListItemText
-                      primary={`${batch.number} (${batch.type})`}
-                      secondary={`Created: ${new Date(batch.createdAt?.toDate()).toLocaleDateString()}`}
+                      primary={`${batch.oilBatchCode} (${batch.type})`}
+                      secondary={`Amount: ${batch.amountGrams}g • Remaining: ${batch.remainingGrams}g • Potency: ${batch.potencyPercent}% • Received: ${batch.dateRecieved ? new Date(batch.dateRecieved?.toDate ? batch.dateRecieved.toDate() : batch.dateRecieved).toLocaleDateString() : '—'}`}
                     />
+                    <IconButton onClick={() => {
+                      setEditingOilBatch(batch);
+                      setOilBatchForm({
+                        oilBatchCode: batch.oilBatchCode || '',
+                        type: batch.type || '',
+                        amountGrams: String(batch.amountGrams ?? ''),
+                        potencyPercent: String(batch.potencyPercent ?? ''),
+                        remainingGrams: String(batch.remainingGrams ?? ''),
+                        dateRecieved: batch.dateRecieved ? new Date(batch.dateRecieved?.toDate ? batch.dateRecieved.toDate() : batch.dateRecieved).toISOString().slice(0,10) : new Date().toISOString().slice(0,10)
+                      });
+                      setOilBatchErrors({});
+                      setOilBatchDialogOpen(true);
+                    }}>
+                      <Edit />
+                    </IconButton>
                     <IconButton onClick={() => handleOilBatchDelete(batch.id)} color="error">
                       <Delete />
                     </IconButton>
@@ -476,13 +551,15 @@ function AdminDashboard() {
 
       {/* Oil Batch Dialog */}
       <Dialog open={oilBatchDialogOpen} onClose={() => setOilBatchDialogOpen(false)}>
-        <DialogTitle>Add Oil Batch</DialogTitle>
+        <DialogTitle>{editingOilBatch ? 'Edit Oil Batch' : 'Add Oil Batch'}</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
-            label="Number"
-            value={oilBatchForm.number}
-            onChange={(e) => setOilBatchForm({ ...oilBatchForm, number: e.target.value })}
+            label="Oil Batch Code"
+            value={oilBatchForm.oilBatchCode}
+            onChange={(e) => setOilBatchForm({ ...oilBatchForm, oilBatchCode: e.target.value })}
+            error={Boolean(oilBatchErrors.oilBatchCode)}
+            helperText={oilBatchErrors.oilBatchCode}
             sx={{ mb: 2, mt: 1 }}
           />
           <TextField
@@ -490,6 +567,54 @@ function AdminDashboard() {
             label="Type"
             value={oilBatchForm.type}
             onChange={(e) => setOilBatchForm({ ...oilBatchForm, type: e.target.value })}
+            error={Boolean(oilBatchErrors.type)}
+            helperText={oilBatchErrors.type}
+            sx={{ mb: 2 }}
+          />
+          <Grid container spacing={2} sx={{ mb: 1 }}>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Amount (g)"
+                type="number"
+                value={oilBatchForm.amountGrams}
+                onChange={(e) => setOilBatchForm({ ...oilBatchForm, amountGrams: e.target.value })}
+                error={Boolean(oilBatchErrors.amountGrams)}
+                helperText={oilBatchErrors.amountGrams}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Potency (%)"
+                type="number"
+                value={oilBatchForm.potencyPercent}
+                onChange={(e) => setOilBatchForm({ ...oilBatchForm, potencyPercent: e.target.value })}
+                error={Boolean(oilBatchErrors.potencyPercent)}
+                helperText={oilBatchErrors.potencyPercent}
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                label="Remaining (g)"
+                type="number"
+                value={oilBatchForm.remainingGrams}
+                onChange={(e) => setOilBatchForm({ ...oilBatchForm, remainingGrams: e.target.value })}
+                error={Boolean(oilBatchErrors.remainingGrams)}
+                helperText={oilBatchErrors.remainingGrams}
+              />
+            </Grid>
+          </Grid>
+          <TextField
+            fullWidth
+            label="Date Received"
+            type="date"
+            value={oilBatchForm.dateRecieved}
+            onChange={(e) => setOilBatchForm({ ...oilBatchForm, dateRecieved: e.target.value })}
+            InputLabelProps={{ shrink: true }}
+            error={Boolean(oilBatchErrors.dateRecieved)}
+            helperText={oilBatchErrors.dateRecieved}
           />
         </DialogContent>
         <DialogActions>

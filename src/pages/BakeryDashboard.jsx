@@ -29,7 +29,8 @@ import {
   updateRetailRequest,
   getInventory,
   updateInventory,
-  generateBatchCode
+  generateBatchCode,
+  addInventory
 } from '../services/firebase';
 
 function BakeryDashboard() {
@@ -44,6 +45,7 @@ function BakeryDashboard() {
   const [selectedProduct, setSelectedProduct] = useState('');
   const [selectedOilBatches, setSelectedOilBatches] = useState([]);
   const [quantity, setQuantity] = useState('');
+  const [dosageMg, setDosageMg] = useState('');
   const [batchCode, setBatchCode] = useState('');
 
   useEffect(() => {
@@ -70,24 +72,33 @@ function BakeryDashboard() {
     }
   };
 
+  const recomputeBatchCode = (
+    nextProductId = selectedProduct,
+    nextDosage = dosageMg,
+    nextOilBatchId = selectedOilBatches[0]?.oilBatchId
+  ) => {
+    const product = products.find(p => p.id === nextProductId);
+    const batch = oilBatches.find(b => b.id === nextOilBatchId);
+    if (!product) {
+      setBatchCode('');
+      return;
+    }
+    const oilType = batch?.type || '';
+    const numeric = String(batch?.oilBatchCode || '')
+      .replace(/^DC/i, '')
+      .replace(/[^0-9]/g, '') || '0000';
+    const prefix = `${nextDosage || ''}${oilType}${product.acronym}`;
+    setBatchCode(generateBatchCode(prefix, numeric));
+  };
+
   const handleProductChange = (event) => {
     const productId = event.target.value;
     setSelectedProduct(productId);
-    
-    if (productId) {
-      const product = products.find(p => p.id === productId);
-      if (product) {
-        setBatchCode(generateBatchCode(product.code, '9999')); // Default oil batch number
-      }
-    }
+    recomputeBatchCode(productId, undefined, undefined);
   };
 
   const handleOilBatchAdd = () => {
-    const newOilBatch = {
-      oilBatchId: '',
-      type: '',
-      ratio: 100
-    };
+    const newOilBatch = { oilBatchId: '', type: '' };
     setSelectedOilBatches([...selectedOilBatches, newOilBatch]);
   };
 
@@ -95,6 +106,10 @@ function BakeryDashboard() {
     const updatedOilBatches = [...selectedOilBatches];
     updatedOilBatches[index][field] = value;
     setSelectedOilBatches(updatedOilBatches);
+
+    if (field === 'oilBatchId') {
+      recomputeBatchCode(undefined, undefined, value);
+    }
   };
 
   const handleOilBatchRemove = (index) => {
@@ -107,12 +122,18 @@ function BakeryDashboard() {
       const product = products.find(p => p.id === selectedProduct);
       if (!product) return;
 
+      const selectedOil = oilBatches.find(b => b.id === selectedOilBatches[0]?.oilBatchId);
       const batchData = {
-        code: batchCode,
-        productId: product.acronym,
-        oils: selectedOilBatches,
-        quantity: parseInt(quantity),
-        remaining: parseInt(quantity)
+        batchCode: batchCode,
+        productId: `/products/${product.id}`,
+        productAcronym: product.acronym,
+        oilBatchId: selectedOil ? `/oilBatches/${selectedOil.id}` : '',
+        oilBatchCode: selectedOil?.oilBatchCode || '',
+        oilType: selectedOil?.type || '',
+        dosageMg: Number(dosageMg || 0),
+        quantityProduced: parseInt(quantity),
+        dateMade: new Date(),
+        dateStr: new Date().toLocaleDateString('en-US', { year: '2-digit', month: '2-digit', day: '2-digit' }).replaceAll('/','-')
       };
 
       await addBatch(batchData);
@@ -207,6 +228,20 @@ function BakeryDashboard() {
                 />
               </Grid>
 
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  label="Dosage (mg)"
+                  type="number"
+                  value={dosageMg}
+                  onChange={(e) => {
+                    setDosageMg(e.target.value);
+                    recomputeBatchCode(undefined, e.target.value, undefined);
+                  }}
+                  helperText="Required; appears at start of batch code"
+                />
+              </Grid>
+
               <Grid item xs={12}>
                 <Typography variant="subtitle1" gutterBottom>
                   Oil Batches
@@ -224,21 +259,13 @@ function BakeryDashboard() {
                           >
                             {oilBatches.map((batch) => (
                               <MenuItem key={batch.id} value={batch.id}>
-                                {batch.number} ({batch.type})
+                                {batch.oilBatchCode} ({batch.type}) — {batch.potencyPercent}%
                               </MenuItem>
                             ))}
                           </Select>
                         </FormControl>
                       </Grid>
-                      <Grid item xs={12} md={3}>
-                        <TextField
-                          fullWidth
-                          label="Ratio (%)"
-                          type="number"
-                          value={oilBatch.ratio}
-                          onChange={(e) => handleOilBatchChange(index, 'ratio', e.target.value)}
-                        />
-                      </Grid>
+                      
                       <Grid item xs={12} md={2}>
                         <Button
                           variant="outlined"
