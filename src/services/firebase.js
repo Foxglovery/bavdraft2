@@ -13,6 +13,7 @@ import {
   where,
   orderBy,
   serverTimestamp,
+  runTransaction,
 } from "firebase/firestore";
 import {
   getAuth,
@@ -135,6 +136,11 @@ const normalizeProductBatch = (data) => {
     productAcronym: String(data.productAcronym).trim(),
     productId: withCollectionPath(String(data.productId).trim(), "products"),
     quantityProduced: Number(data.quantityProduced),
+    remainingQuanity: Number(
+      data.remainingQuanity !== undefined
+        ? data.remainingQuanity
+        : data.quantityProduced
+    ),
   };
 };
 
@@ -272,6 +278,21 @@ export const getRecentBatchesByProduct = async (productId, limit = 4) => {
 export const updateBatch = async (batchId, batchData) => {
   const batchRef = doc(db, "productBatches", batchId);
   return updateDoc(batchRef, normalizeProductBatch({ ...batchData }));
+};
+
+// Decrement remainingQuantity on a product batch, clamped to >= 0
+export const decrementBatchRemaining = async (batchId, amount) => {
+  if (!batchId || !Number.isFinite(amount) || amount <= 0) return;
+  const ref = doc(db, "productBatches", batchId);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Batch not found");
+    const data = snap.data();
+    // If remainingQuantity was never set (old docs), start from quantityProduced.
+    const curr = Number(data.remainingQuantity ?? data.quantityProduced ?? 0);
+    const next = Math.max(0, curr - Number(amount));
+    tx.update(ref, { remainingQuantity: next, lastUpdated: serverTimestamp() });
+  });
 };
 
 // Inventory collection

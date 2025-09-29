@@ -32,7 +32,8 @@ import {
   updateInventory,
   addInventory,
   addFulfillmentLog,
-  getFulfillmentLogsByDate
+  getFulfillmentLogsByDate,
+  decrementBatchRemaining
 } from '../services/firebase';
 
 function FulfillmentDashboard() {
@@ -112,6 +113,15 @@ function FulfillmentDashboard() {
 
   const handlePackagingAction = async () => {
     const selectedBatchData = productBatches.find(b => b.id === selectedBatch);
+    const leftNow = Number(selectedBatchData?.remainingQuantity ?? selectedBatchData?.quantityProduced ?? 0);
+    if (Number(quantity) > leftNow) {
+      alert('Quantity exceeds what is left in this batch.');
+      return;
+    }
+    if (selectedBatchData && Number(quantity) > Number(selectedBatchData.remainingQuantity ?? selectedBatchData.quantityProduced ?? 0)) {
+      alert('Quantity exceeds what is left in this batch.');
+      return;
+    }
     const action = {
       id: Date.now(),
       productId: selectedProduct, // Keep full path for logging
@@ -173,6 +183,27 @@ function FulfillmentDashboard() {
         }]
       });
 
+      // Decrement remaining quantity in batch
+      await decrementBatchRemaining(action.batchId, action.quantity);
+
+       // Optimistic local update so UI reflects immediately
+ setProductBatches(prev =>
+   prev.map(b =>
+         b.id === action.batchId
+            ? {
+                ...b,
+                remainingQuantity: Math.max(
+                  0,
+                  (Number(b.remainingQuantity ?? b.quantityProduced ?? 0) -
+                    Number(action.quantity || 0))
+                ),
+              }
+            : b
+        )
+      );
+
+      // Then refetch from Firestore so we show the authoritative value
+      await loadProductBatches();
       // Reload data
       loadData();
     } catch (error) {
@@ -268,7 +299,7 @@ function FulfillmentDashboard() {
                         >
                           {productBatches.map((batch) => (
                             <MenuItem key={batch.id} value={batch.id}>
-                              {batch.batchCode} - {batch.quantityProduced} units ({batch.dateStr})
+                              {batch.batchCode} — {(batch.remainingQuantity ?? batch.quantityProduced)} left ({batch.dateStr})
                             </MenuItem>
                           ))}
                         </Select>

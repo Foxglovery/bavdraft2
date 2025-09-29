@@ -431,7 +431,7 @@ userEmail: currentUser?.email || '',
                                Batch: {log.batchCode} • Oil: {log.oilBatchCode || '—'} ({log.oilType || '—'})
                              </Typography>
                              <Typography variant="caption" color="text.secondary">
-                               User: {log.userId || '—'}
+                               User: {log.userEmail || log.userId || '—'}
                              </Typography>
                            </Box>
                          }
