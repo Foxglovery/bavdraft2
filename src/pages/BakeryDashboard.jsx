@@ -34,6 +34,7 @@ import {
   getInventory,
   updateInventory,
   generateBatchCode,
+  onAuthChange,
 } from '../services/firebase';
 
 function BakeryDashboard() {
@@ -41,6 +42,7 @@ function BakeryDashboard() {
   const [oilBatches, setOilBatches] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [inventory, setInventory] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
   const [todayLogs, setTodayLogs] = useState([]);
@@ -55,6 +57,8 @@ function BakeryDashboard() {
 
   useEffect(() => {
     loadData();
+    const unsub = onAuthChange((u) => setCurrentUser(u));
+    return () => unsub();
   }, []);
 
   const loadData = async () => {
@@ -193,8 +197,10 @@ oilBatchCode: batchData.oilBatchCode,
 oilType: batchData.oilType,
 dosageMg: batchData.dosageMg,
 quantityProduced: batchData.quantityProduced,
-userId: 'bakeryUser1'                  // swap to actual authed user if you pass context
-      });
+userId: currentUser?.uid || 'unknown',
+userEmail: currentUser?.email || '',
+});
+
 
       // Reset form
       setSelectedProduct('');
