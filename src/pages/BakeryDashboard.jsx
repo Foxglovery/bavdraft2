@@ -22,6 +22,10 @@ import {
   Tab
 } from '@mui/material';
 import {
+  addInventory,
+  addProductionLog,
+  getProductionLogsByDate,
+  getRecentProductionLogs,
   getProducts,
   getOilBatches,
   addBatch,
@@ -30,7 +34,6 @@ import {
   getInventory,
   updateInventory,
   generateBatchCode,
-  addInventory
 } from '../services/firebase';
 
 function BakeryDashboard() {
@@ -40,6 +43,8 @@ function BakeryDashboard() {
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
+  const [todayLogs, setTodayLogs] = useState([]);
+  const todayStr = new Date().toISOString().split('T')[0]; // 'YYYY-MM-DD'
 
   // Batch creation form state
   const [selectedProduct, setSelectedProduct] = useState('');
@@ -65,12 +70,23 @@ function BakeryDashboard() {
       setOilBatches(oilBatchesData);
       setPendingRequests(requestsData);
       setInventory(inventoryData);
+      await loadTodayProductionLogs();
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
   };
+
+    const loadTodayProductionLogs = async () => {
+    try {
+      const logs = await getProductionLogsByDate(todayStr);
+      setTodayLogs(logs);
+    } catch (e) {
+      console.error('Failed to load production logs', e);
+    }
+  };
+
 
   const recomputeBatchCode = (
     nextProductId = selectedProduct,
@@ -134,10 +150,16 @@ function BakeryDashboard() {
         quantityProduced: parseInt(quantity),
         remainingQuantity: parseInt(quantity), // Initialize remaining quantity same as produced
         dateMade: new Date(),
-        dateStr: new Date().toLocaleDateString('en-US', { year: '2-digit', month: '2-digit', day: '2-digit' }).replaceAll('/','-')
+        dateStr: todayStr, // keep this consistent too, if you use it elsewhere
       };
 
-      await addBatch(batchData);
+      let batchId = '';
+      try {
+        const batchRef = await addBatch(batchData); // if your addBatch returns a docRef
+        if (batchRef?.id) batchId = batchRef.id;
+      } catch (e) {
+        console.warn('addBatch did not return a docRef (continuing):', e);
+      }
 
       // Update inventory - ensure we use the product acronym, not the document ID
       const productAcronym = product.acronym || product.id;
@@ -159,6 +181,20 @@ function BakeryDashboard() {
           totalAvailable: parseInt(quantity)
         });
       }
+      // Write production log entry
+await addProductionLog({
+date: todayStr, // 'YYYY-MM-DD' for easy date filtering (matches fulfillment logs style)
+batchId,
+batchCode: batchData.batchCode,
+productId: batchData.productId,        // stored as '/products/<id>'
+productAcronym: batchData.productAcronym,
+oilBatchId: batchData.oilBatchId,      // '/oilBatches/<id>' or ''
+oilBatchCode: batchData.oilBatchCode,
+oilType: batchData.oilType,
+dosageMg: batchData.dosageMg,
+quantityProduced: batchData.quantityProduced,
+userId: 'bakeryUser1'                  // swap to actual authed user if you pass context
+      });
 
       // Reset form
       setSelectedProduct('');
@@ -167,7 +203,8 @@ function BakeryDashboard() {
       setBatchCode('');
       
       // Reload data
-      loadData();
+      await loadData();
+      await loadTodayProductionLogs();
     } catch (error) {
       console.error('Error creating batch:', error);
     }
@@ -352,15 +389,53 @@ function BakeryDashboard() {
         </Card>
       )}
 
-      {activeTab === 2 && (
-        <Card>
-          <CardContent>
-            <Typography variant="h6" gutterBottom>
-              Today's Production Log
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Production log functionality will be implemented here.
-            </Typography>
+       {activeTab === 2 && (
+         <Card>
+           <CardContent>
+             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+               <Typography variant="h6" gutterBottom>
+                 Today&apos;s Production Log
+               </Typography>
+               <Button onClick={loadTodayProductionLogs} variant="outlined">Refresh</Button>
+               <Button
+                 onClick={async () => {
+                   try {
+                     const logs = await getRecentProductionLogs(25);
+                     setTodayLogs(logs);
+                   } catch (e) { console.error('Recent logs read failed', e); }
+                 }}
+               variant="text"
+             >
+               Show last 25
+             </Button>
+             </Box>
+
+             {todayLogs.length === 0 ? (
+               <Alert severity="info">No production logs for today</Alert>
+             ) : (
+               <List>
+                 {todayLogs.map((log) => (
+                   <React.Fragment key={log.id}>
+                     <ListItem>
+                       <ListItemText
+                         primary={`${log.productAcronym} — ${log.quantityProduced} units @ ${log.dosageMg}mg`}
+                         secondary={
+                           <Box>
+                             <Typography variant="body2">
+                               Batch: {log.batchCode} • Oil: {log.oilBatchCode || '—'} ({log.oilType || '—'})
+                             </Typography>
+                             <Typography variant="caption" color="text.secondary">
+                               User: {log.userId || '—'}
+                             </Typography>
+                           </Box>
+                         }
+                       />
+                     </ListItem>
+                     <Divider />
+                  </React.Fragment>
+                ))}
+              </List>
+            )}
           </CardContent>
         </Card>
       )}

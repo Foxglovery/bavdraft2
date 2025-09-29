@@ -1,15 +1,34 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, doc, addDoc, setDoc, updateDoc, deleteDoc, getDocs, getDoc, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { initializeApp } from "firebase/app";
+import {
+  getFirestore,
+  collection,
+  doc,
+  addDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  getDocs,
+  getDoc,
+  query,
+  where,
+  orderBy,
+  serverTimestamp,
+} from "firebase/firestore";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+} from "firebase/auth";
 
 // Firebase configuration - using environment variables
 const firebaseConfig = {
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 // Initialize Firebase
@@ -18,9 +37,9 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 
 // Test Firebase connection
-console.log('Firebase initialized with config:', {
-    projectId: firebaseConfig.projectId,
-    authDomain: firebaseConfig.authDomain
+console.log("Firebase initialized with config:", {
+  projectId: firebaseConfig.projectId,
+  authDomain: firebaseConfig.authDomain,
 });
 
 // ----------------------
@@ -28,20 +47,28 @@ console.log('Firebase initialized with config:', {
 // ----------------------
 
 const assertHasFields = (obj, requiredKeys, context) => {
-  const missing = requiredKeys.filter((k) => obj[k] === undefined || obj[k] === null);
+  const missing = requiredKeys.filter(
+    (k) => obj[k] === undefined || obj[k] === null
+  );
   if (missing.length > 0) {
-    throw new Error(`${context} missing required field(s): ${missing.join(', ')}`);
+    throw new Error(
+      `${context} missing required field(s): ${missing.join(", ")}`
+    );
   }
 };
 
 // Products
 const normalizeProduct = (data) => {
-  assertHasFields(data, ['acronym', 'active', 'inventoryCount', 'name'], 'Product');
+  assertHasFields(
+    data,
+    ["acronym", "active", "inventoryCount", "name"],
+    "Product"
+  );
   return {
     acronym: String(data.acronym).trim(),
     active: Boolean(data.active),
     inventoryCount: Number(data.inventoryCount),
-    name: String(data.name).trim()
+    name: String(data.name).trim(),
   };
 };
 
@@ -49,8 +76,15 @@ const normalizeProduct = (data) => {
 const normalizeOilBatch = (data) => {
   assertHasFields(
     data,
-    ['amountGrams', 'dateRecieved', 'oilBatchCode', 'potencyPercent', 'remainingGrams', 'type'],
-    'OilBatch'
+    [
+      "amountGrams",
+      "dateRecieved",
+      "oilBatchCode",
+      "potencyPercent",
+      "remainingGrams",
+      "type",
+    ],
+    "OilBatch"
   );
   return {
     amountGrams: Number(data.amountGrams),
@@ -58,32 +92,34 @@ const normalizeOilBatch = (data) => {
     oilBatchCode: String(data.oilBatchCode).trim(),
     potencyPercent: Number(data.potencyPercent),
     remainingGrams: Number(data.remainingGrams),
-    type: String(data.type).trim()
+    type: String(data.type).trim(),
   };
 };
 
 // Product Batches
 const withCollectionPath = (value, collectionPath) => {
-  if (typeof value !== 'string' || value.length === 0) return value;
-  return value.startsWith(`/${collectionPath}/`) ? value : `/${collectionPath}/${value}`;
+  if (typeof value !== "string" || value.length === 0) return value;
+  return value.startsWith(`/${collectionPath}/`)
+    ? value
+    : `/${collectionPath}/${value}`;
 };
 
 const normalizeProductBatch = (data) => {
   assertHasFields(
     data,
     [
-      'batchCode',
-      'dateMade',
-      'dateStr',
-      'dosageMg',
-      'oilBatchCode',
-      'oilBatchId',
-      'oilType',
-      'productAcronym',
-      'productId',
-      'quantityProduced'
+      "batchCode",
+      "dateMade",
+      "dateStr",
+      "dosageMg",
+      "oilBatchCode",
+      "oilBatchId",
+      "oilType",
+      "productAcronym",
+      "productId",
+      "quantityProduced",
     ],
-    'ProductBatch'
+    "ProductBatch"
   );
   return {
     batchCode: String(data.batchCode).trim(),
@@ -91,11 +127,14 @@ const normalizeProductBatch = (data) => {
     dateStr: String(data.dateStr).trim(),
     dosageMg: Number(data.dosageMg),
     oilBatchCode: String(data.oilBatchCode).trim(),
-    oilBatchId: withCollectionPath(String(data.oilBatchId).trim(), 'oilBatches'),
+    oilBatchId: withCollectionPath(
+      String(data.oilBatchId).trim(),
+      "oilBatches"
+    ),
     oilType: String(data.oilType).trim(),
     productAcronym: String(data.productAcronym).trim(),
-    productId: withCollectionPath(String(data.productId).trim(), 'products'),
-    quantityProduced: Number(data.quantityProduced)
+    productId: withCollectionPath(String(data.productId).trim(), "products"),
+    quantityProduced: Number(data.quantityProduced),
   };
 };
 
@@ -114,212 +153,255 @@ export const onAuthChange = (callback) => {
 
 // Products collection
 export const addProduct = async (productData) => {
-  return addDoc(collection(db, 'products'), {
+  return addDoc(collection(db, "products"), {
     ...normalizeProduct(productData),
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(),
   });
 };
 
 export const getProducts = async () => {
   try {
-    console.log('Fetching products from Firestore...');
-    const querySnapshot = await getDocs(collection(db, 'products'));
-    const products = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    console.log('Products fetched:', products.length);
+    console.log("Fetching products from Firestore...");
+    const querySnapshot = await getDocs(collection(db, "products"));
+    const products = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    console.log("Products fetched:", products.length);
     return products;
   } catch (error) {
-    console.error('Error fetching products:', error);
+    console.error("Error fetching products:", error);
     throw error;
   }
 };
 
 export const updateProduct = async (productId, productData) => {
-  const productRef = doc(db, 'products', productId);
+  const productRef = doc(db, "products", productId);
   return updateDoc(productRef, normalizeProduct({ ...productData }));
 };
 
 export const deleteProduct = async (productId) => {
-  const productRef = doc(db, 'products', productId);
+  const productRef = doc(db, "products", productId);
   return deleteDoc(productRef);
 };
 
 // Oil batches collection
 export const addOilBatch = async (oilBatchData) => {
-  return addDoc(collection(db, 'oilBatches'), {
+  return addDoc(collection(db, "oilBatches"), {
     ...normalizeOilBatch(oilBatchData),
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(),
   });
 };
 
 export const getOilBatches = async () => {
-  const querySnapshot = await getDocs(collection(db, 'oilBatches'));
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const querySnapshot = await getDocs(collection(db, "oilBatches"));
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 };
 
 export const deleteOilBatch = async (oilBatchId) => {
-  const oilBatchRef = doc(db, 'oilBatches', oilBatchId);
+  const oilBatchRef = doc(db, "oilBatches", oilBatchId);
   return deleteDoc(oilBatchRef);
 };
 
 export const updateOilBatch = async (oilBatchId, oilBatchData) => {
-  const oilBatchRef = doc(db, 'oilBatches', oilBatchId);
+  const oilBatchRef = doc(db, "oilBatches", oilBatchId);
   return updateDoc(oilBatchRef, normalizeOilBatch({ ...oilBatchData }));
 };
 
 // Product batches collection
 export const addBatch = async (batchData) => {
-  return addDoc(collection(db, 'productBatches'), {
+  return addDoc(collection(db, "productBatches"), {
     ...normalizeProductBatch(batchData),
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(),
   });
 };
 
 export const getBatches = async () => {
-  const querySnapshot = await getDocs(collection(db, 'productBatches'));
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const querySnapshot = await getDocs(collection(db, "productBatches"));
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 };
 
 export const getBatchesByProduct = async (productId) => {
-  const q = query(collection(db, 'productBatches'), where('productId', '==', productId));
+  const q = query(
+    collection(db, "productBatches"),
+    where("productId", "==", productId)
+  );
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 };
 
 export const getRecentBatchesByProduct = async (productId, limit = 4) => {
-  console.log('Querying productBatches for productId:', productId);
+  console.log("Querying productBatches for productId:", productId);
   try {
     const q = query(
-      collection(db, 'productBatches'), 
-      where('productId', '==', productId),
-      orderBy('dateMade', 'desc')
+      collection(db, "productBatches"),
+      where("productId", "==", productId),
+      orderBy("dateMade", "desc")
     );
     const querySnapshot = await getDocs(q);
     const results = querySnapshot.docs
       .slice(0, limit)
-      .map(doc => ({ id: doc.id, ...doc.data() }));
-    console.log('Found batches:', results);
+      .map((doc) => ({ id: doc.id, ...doc.data() }));
+    console.log("Found batches:", results);
     return results;
   } catch (error) {
-    console.log('OrderBy failed, trying without orderBy:', error);
+    console.log("OrderBy failed, trying without orderBy:", error);
     // Fallback without orderBy in case of indexing issues
     const q = query(
-      collection(db, 'productBatches'), 
-      where('productId', '==', productId)
+      collection(db, "productBatches"),
+      where("productId", "==", productId)
     );
     const querySnapshot = await getDocs(q);
     const results = querySnapshot.docs
-      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
       .sort((a, b) => {
-        const dateA = a.dateMade?.toDate ? a.dateMade.toDate() : new Date(a.dateMade);
-        const dateB = b.dateMade?.toDate ? b.dateMade.toDate() : new Date(b.dateMade);
+        const dateA = a.dateMade?.toDate
+          ? a.dateMade.toDate()
+          : new Date(a.dateMade);
+        const dateB = b.dateMade?.toDate
+          ? b.dateMade.toDate()
+          : new Date(b.dateMade);
         return dateB - dateA;
       })
       .slice(0, limit);
-    console.log('Found batches (fallback):', results);
+    console.log("Found batches (fallback):", results);
     return results;
   }
 };
 
 export const updateBatch = async (batchId, batchData) => {
-  const batchRef = doc(db, 'productBatches', batchId);
+  const batchRef = doc(db, "productBatches", batchId);
   return updateDoc(batchRef, normalizeProductBatch({ ...batchData }));
 };
 
 // Inventory collection
 export const getInventory = async () => {
-  const querySnapshot = await getDocs(collection(db, 'inventory'));
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const querySnapshot = await getDocs(collection(db, "inventory"));
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 };
 
 export const updateInventory = async (productId, inventoryData) => {
-  const inventoryRef = doc(db, 'inventory', productId);
+  const inventoryRef = doc(db, "inventory", productId);
   return updateDoc(inventoryRef, {
     ...inventoryData,
-    lastUpdated: serverTimestamp()
+    lastUpdated: serverTimestamp(),
   });
 };
 
 export const addInventory = async (inventoryData) => {
-  return addDoc(collection(db, 'inventory'), {
+  return addDoc(collection(db, "inventory"), {
     ...inventoryData,
-    lastUpdated: serverTimestamp()
+    lastUpdated: serverTimestamp(),
   });
 };
 
 // Fulfillment logs collection
 export const addFulfillmentLog = async (fulfillmentData) => {
-  return addDoc(collection(db, 'fulfillmentLogs'), {
+  return addDoc(collection(db, "fulfillmentLogs"), {
     ...fulfillmentData,
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(),
   });
 };
 
 export const getFulfillmentLogs = async () => {
-  const querySnapshot = await getDocs(collection(db, 'fulfillmentLogs'));
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const querySnapshot = await getDocs(collection(db, "fulfillmentLogs"));
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 };
 
 export const getFulfillmentLogsByDate = async (date) => {
-  const q = query(collection(db, 'fulfillmentLogs'), where('date', '==', date));
+  const q = query(collection(db, "fulfillmentLogs"), where("date", "==", date));
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+};
+
+// --- Production logs collection ---
+export const addProductionLog = async (logData) => {
+  return addDoc(collection(db, "productionLogs"), {
+    ...logData,
+    createdAt: serverTimestamp(),
+  });
+};
+
+export const getProductionLogsByDate = async (date) => {
+  // date: 'YYYY-MM-DD'
+  const q = query(collection(db, "productionLogs"), where("date", "==", date));
+  const snap = await getDocs(q);
+  // sort client-side by createdAt desc (no composite index needed)
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+};
+
+export const getRecentProductionLogs = async (limitCount = 25) => {
+  // Simple recent read; you can add orderBy('createdAt','desc') later if you build an index
+  const snap = await getDocs(collection(db, "productionLogs"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+    .slice(0, limitCount);
 };
 
 // Retail requests collection
 export const addRetailRequest = async (requestData) => {
-  return addDoc(collection(db, 'retailRequests'), {
+  return addDoc(collection(db, "retailRequests"), {
     ...requestData,
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(),
   });
 };
 
 export const getRetailRequests = async () => {
-  const querySnapshot = await getDocs(collection(db, 'retailRequests'));
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const querySnapshot = await getDocs(collection(db, "retailRequests"));
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 };
 
 export const getPendingRetailRequests = async () => {
-  const q = query(collection(db, 'retailRequests'), where('status', '==', 'pending'));
+  const q = query(
+    collection(db, "retailRequests"),
+    where("status", "==", "pending")
+  );
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 };
 
 export const updateRetailRequest = async (requestId, requestData) => {
-  const requestRef = doc(db, 'retailRequests', requestId);
+  const requestRef = doc(db, "retailRequests", requestId);
   return updateDoc(requestRef, requestData);
 };
 
 // Users collection
 export const addUser = async (userData, uid) => {
   if (!uid) {
-    throw new Error('UID is required to create a user document');
+    throw new Error("UID is required to create a user document");
   }
-  const userRef = doc(db, 'users', uid);
+  const userRef = doc(db, "users", uid);
   return setDoc(userRef, {
     ...userData,
     uid: uid,
-    createdAt: serverTimestamp()
+    createdAt: serverTimestamp(),
   });
 };
 
 export const getUsers = async () => {
   try {
-    console.log('Fetching users from Firestore...');
-    const querySnapshot = await getDocs(collection(db, 'users'));
-    const users = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    console.log('Users fetched:', users.length);
+    console.log("Fetching users from Firestore...");
+    const querySnapshot = await getDocs(collection(db, "users"));
+    const users = querySnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    console.log("Users fetched:", users.length);
     return users;
   } catch (error) {
-    console.error('Error fetching users:', error);
+    console.error("Error fetching users:", error);
     throw error;
   }
 };
 
 export const getUserByUid = async (uid) => {
   if (!uid) {
-    throw new Error('UID is required to get a user document');
+    throw new Error("UID is required to get a user document");
   }
-  const userRef = doc(db, 'users', uid);
+  const userRef = doc(db, "users", uid);
   const userDoc = await getDoc(userRef);
   if (userDoc.exists()) {
     return { id: userDoc.id, ...userDoc.data() };
@@ -329,38 +411,46 @@ export const getUserByUid = async (uid) => {
 
 export const updateUser = async (uid, userData) => {
   if (!uid) {
-    throw new Error('UID is required to update a user document');
+    throw new Error("UID is required to update a user document");
   }
-  const userRef = doc(db, 'users', uid);
+  const userRef = doc(db, "users", uid);
   return updateDoc(userRef, {
     ...userData,
-    lastUpdated: serverTimestamp()
+    lastUpdated: serverTimestamp(),
   });
 };
 
 export const deleteUser = async (uid) => {
   if (!uid) {
-    throw new Error('UID is required to delete a user document');
+    throw new Error("UID is required to delete a user document");
   }
-  const userRef = doc(db, 'users', uid);
+  const userRef = doc(db, "users", uid);
   return deleteDoc(userRef);
 };
 
 // Utility function to create or update user document on signup
 export const createOrUpdateUserDocument = async (uid, userData) => {
   if (!uid) {
-    throw new Error('UID is required to create or update a user document');
+    throw new Error("UID is required to create or update a user document");
   }
-  const userRef = doc(db, 'users', uid);
-  return setDoc(userRef, {
-    ...userData,
-    uid: uid,
-    lastUpdated: serverTimestamp()
-  }, { merge: true }); // merge: true will update existing document or create new one
+  const userRef = doc(db, "users", uid);
+  return setDoc(
+    userRef,
+    {
+      ...userData,
+      uid: uid,
+      lastUpdated: serverTimestamp(),
+    },
+    { merge: true }
+  ); // merge: true will update existing document or create new one
 };
 
 // Utility function for batch code generation
-export const generateBatchCode = (productCode, oilBatchNumber, date = new Date()) => {
+export const generateBatchCode = (
+  productCode,
+  oilBatchNumber,
+  date = new Date()
+) => {
   const mm = String(date.getMonth() + 1).padStart(2, "0");
   const dd = String(date.getDate()).padStart(2, "0");
   const yy = String(date.getFullYear()).slice(-2);
